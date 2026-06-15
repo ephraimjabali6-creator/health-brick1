@@ -1,17 +1,20 @@
-from flask import Flask, jsonify
-import platform, psutil, datetime
+from flask import Flask, jsonify, request
+import datetime
 
 app = Flask(__name__)
+latest_data = {"status": "waiting for laptop..."}
 
 @app.route('/health')
 def health():
-    data = {
-        "device": platform.node(),
-        "cpu_percent": psutil.cpu_percent(interval=1),
-        "memory_percent": psutil.virtual_memory().percent,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-    return jsonify(data)
+    return jsonify(latest_data)
+
+@app.route('/update', methods=['POST'])
+def update():
+    global latest_data
+    data = request.get_json()
+    data['timestamp'] = datetime.datetime.now().isoformat()
+    latest_data = data
+    return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
