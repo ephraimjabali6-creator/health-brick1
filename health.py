@@ -1,9 +1,17 @@
 from flask import Flask, jsonify, request, render_template_string
-import datetime
+import datetime, requests
 
 app = Flask(__name__)
-history = []  # stores last 100 readings
+history = []
 latest_data = {"status": "waiting for laptop..."}
+ALERT_SENT = False
+
+TELEGRAM_TOKEN = "8776810354:AAERtW5yasJeL46vQXPn2GAKwXLUWhKtBM"
+TELEGRAM_CHAT_ID = "2030620293"
+
+def send_telegram_alert(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
 
 HTML = """
 <!doctype html>
@@ -25,7 +33,6 @@ canvas{background:#0f172a;border-radius:12px;padding:10px}
 </head>
 <body>
 <h1>🚀 Brick 1 Monitor - DESKTOP-VB07DH3</h1>
-
 <div class="card">
 <h2>Live Stats</h2>
 <h3>CPU: {{cpu}}% | RAM: {{ram}}% | Disk: {{disk}}% | Up: {{uptime}}h</h3>
@@ -34,12 +41,10 @@ canvas{background:#0f172a;border-radius:12px;padding:10px}
 <div class="bar"><div class="fill {{'danger' if disk>80 else 'warn' if disk>60 else ''}}" style="width:{{disk}}%"></div></div>
 <p>Last update: {{time}}</p>
 </div>
-
 <div class="grid">
 <div class="card"><canvas id="cpuChart"></canvas></div>
 <div class="card"><canvas id="ramChart"></canvas></div>
 </div>
-
 <script>
 const labels = {{labels|safe}};
 new Chart(document.getElementById('cpuChart'), {
@@ -58,7 +63,7 @@ new Chart(document.getElementById('ramChart'), {
 @app.route('/')
 def dashboard():
     d = latest_data
-    labels = [h['timestamp'][11:16] for h in history[-24:]]  # last 24 readings = 24 min
+    labels = [h['timestamp'][11:16] for h in history[-24:]]
     cpu_data = [h.get('cpu_percent',0) for h in history[-24:]]
     ram_data = [h.get('memory_percent',0) for h in history[-24:]]
     return render_template_string(HTML, 
@@ -73,12 +78,25 @@ def health():
 
 @app.route('/update', methods=['POST'])
 def update():
-    global latest_data
+    global latest_data, ALERT_SENT
     data = request.get_json()
     data['timestamp'] = datetime.datetime.now().isoformat()
     latest_data = data
     history.append(data)
-    if len(history) > 100: history.pop(0)  # keep last 100
+    if len(history) > 100: history.pop(0)
+    
+    disk = data.get('disk_percent', 0)
+    ram = data.get('memory_percent', 0)
+    
+    if disk > 90 and not ALERT_SENT:
+        send_telegram_alert(f"🚨 BRICK 1 ALERT! Disk at {disk}% - C: drive almost full! Clean now!")
+        ALERT_SENT = True
+    elif disk < 85 and ALERT_SENT:
+        ALERT_SENT = False
+    
+    if ram > 95 and not ALERT_SENT:
+        send_telegram_alert(f"⚠️ BRICK 1 WARNING! RAM at {ram}% - Close programs!")
+    
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
