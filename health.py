@@ -88,7 +88,7 @@ def update():
     disk = data.get('disk_percent', 0)
     ram = data.get('memory_percent', 0)
     
-    if disk > 90 and not ALERT_SENT:
+    if disk > 50 and not ALERT_SENT:
         send_telegram_alert(f"🚨 BRICK 1 ALERT! Disk at {disk}% - C: drive almost full! Clean now!")
         ALERT_SENT = True
     elif disk < 85 and ALERT_SENT:
