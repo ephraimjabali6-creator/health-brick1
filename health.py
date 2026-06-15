@@ -1,22 +1,10 @@
 from flask import Flask, jsonify, request, render_template_string
-import datetime, requests, os
+import datetime
+import os
 
 app = Flask(__name__)
 history = []
 latest_data = {"status": "waiting for laptop..."}
-ALERT_SENT = False
-
-# THIS IS THE SECTION - Render reads your secret token here
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-def send_telegram_alert(message):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("ERROR: Token or ChatID missing")
-        return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    r = requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
-    print(f"Telegram response: {r.status_code}")  # DEBUG line
 
 HTML = """
 <!doctype html>
@@ -83,24 +71,12 @@ def health():
 
 @app.route('/update', methods=['POST'])
 def update():
-    global latest_data, ALERT_SENT
+    global latest_data
     data = request.get_json()
     data['timestamp'] = datetime.datetime.now().isoformat()
     latest_data = data
     history.append(data)
     if len(history) > 100: history.pop(0)
-    
-    disk = data.get('disk_percent', 0)
-    ram = data.get('memory_percent', 0)
-    
-    print(f"DEBUG: Disk={disk}%, Token loaded={bool(TELEGRAM_TOKEN)}")  # DEBUG line
-    
-    if disk > 50 and not ALERT_SENT:  # FOR TESTING - change back to 90 after
-        send_telegram_alert(f"🚨 BRICK 1 ALERT! Disk at {disk}% - C: drive almost full!")
-        ALERT_SENT = True
-    elif disk < 45 and ALERT_SENT:
-        ALERT_SENT = False
-    
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
